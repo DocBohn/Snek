@@ -1,6 +1,7 @@
 #include <curses.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct {
     int row;
@@ -12,9 +13,11 @@ void finalize();
 void run();
 
 ordered_pair get_move( int input );
-
+bool check_for_collision();
 
 int original_cursor_state;
+const char game_over_message[] = "Game Over!";
+const size_t game_over_message_length = strlen(game_over_message);
 
 
 int main() {
@@ -48,16 +51,37 @@ void run() {
     int input = 0;
     while (input != 'q') {
         move(row, col);
+
+        bool collision = check_for_collision();
         addch('*');
+        if (collision) {
+            move(LINES/2, COLS/2 - (int)game_over_message_length / 2);
+            addstr(game_over_message);
+        }
         refresh();
 
-        if ((input = getch()) != ERR) {
-            delta = get_move(input);
+        if (!collision) {
+            /* if player enters a direction, use it; otherwise, use previous direction after timeout */
+            if ((input = getch()) != ERR) {
+                delta = get_move(input);
+            }
+            move(row, col);
+            addch(' ');
+            row += delta.row;
+            col += delta.col;
+        } else {
+            napms(1500);
+            input = 'q';
         }
-        move(row, col);
-        addch(' ');
-        row += delta.row;
-        col += delta.col;
+    }
+}
+
+bool check_for_collision() {
+    chtype existing_char = inch();
+    if ((existing_char == '|') || (existing_char == '-')) {
+        return TRUE;
+    } else {
+        return FALSE;
     }
 }
 
