@@ -11,7 +11,7 @@ void initialize();
 void finalize();
 void run();
 
-ordered_pair get_move();
+ordered_pair get_move( int input );
 
 
 int original_cursor_state;
@@ -38,20 +38,22 @@ void finalize() {
 }
 
 void run() {
+    ordered_pair delta = {.row = 0, .col = 1};  // initially move to the right
     int col = COLS / 2;
     int row = LINES / 2;
     box(stdscr, '|', '-');
     crmode();
     noecho();
+    timeout(500);
     int input = 0;
     while (input != 'q') {
         move(row, col);
         addch('*');
-//        move(0, 0);
         refresh();
 
-        input = getch();
-        ordered_pair delta = get_move(input);
+        if ((input = getch()) != ERR) {
+            delta = get_move(input);
+        }
         move(row, col);
         addch(' ');
         row += delta.row;
@@ -59,7 +61,7 @@ void run() {
     }
 }
 
-ordered_pair get_move(int input) {
+ordered_pair get_move( int input ) {
     ordered_pair result = {.row = 0, .col = 0};
     switch (input) {
         case 'w':
