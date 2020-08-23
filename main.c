@@ -28,10 +28,10 @@ void finalize();
 void finalize_on_error( int sig );
 void run();
 
-void convert_message_to_apples(int row, int col, const char *message, int message_length);
+void convert_message_to_apples( int row, int col, const char *message, int message_length );
 ordered_pair get_move( int input );
 bool check_for_collision( int row, int col );
-void eat_apple(int row, int col);
+void eat_apple( int row, int col );
 struct segment *create_new_head( int row, int col, struct segment *old_head, chtype head_marker, chtype tail_marker );
 struct segment *destroy_old_tail( struct segment *old_tail, chtype replacement_marker );
 
@@ -112,7 +112,7 @@ void run() {
     struct segment *head = create_new_head(row, col++, NULL, head_marker, tail_marker);
     struct segment *tail = head;
     ordered_pair delta = {.row = 0, .col = 1};  // initially move to the right
-    convert_message_to_apples(row, col+1, game_start_message, (int)game_start_message_length);
+    convert_message_to_apples(row, col + 1, game_start_message, (int)game_start_message_length);
     refresh();
 
     timeout(pause);
@@ -121,7 +121,7 @@ void run() {
 
     while (input != 'q') {
         bool collision = check_for_collision(row, col);
-        eat_apple(row,col);
+        eat_apple(row, col);
         head = create_new_head(row, col, head, head_marker, tail_marker);
         if (growth) {
             growth--;
@@ -151,7 +151,6 @@ void run() {
         }
     }
 }
-
 
 
 struct segment *create_new_head( int row, int col, struct segment *old_head, chtype head_marker, chtype tail_marker ) {
@@ -191,23 +190,42 @@ bool check_for_collision( int row, int col ) {
     }
 }
 
-void eat_apple(int row, int col) {
+void eat_apple( int row, int col ) {
     chtype existing_char = mvinch(row, col);
     if (existing_char == apple_marker) {
         growth++;
         apples--;
-        pause -= TIMEOUT_DECREMENT; // TODO - make this non-linear below some threshold, prevent a negative (blocking) pause
+        /* non-linear acceleration of player's reaction time */
+        if (pause == 0) {
+            /* superhuman skillz! */
+            // pause = pause;
+        } else if (pause <= TIMEOUT_DECREMENT) {
+            pause -= 1;
+        } else if (pause <= INITIAL_TIMEOUT / 8) {
+            pause -= TIMEOUT_DECREMENT / 4;
+        } else if (pause <= INITIAL_TIMEOUT / 4) {
+            pause -= TIMEOUT_DECREMENT / 2;
+        } else {
+            pause -= TIMEOUT_DECREMENT;
+        }
         timeout(pause);
     }
-    if (!apples) {
-        /* TODO - randomly place apple */
+    /* if there are no apples on the screen, randomly place an apple */
+    while (!apples) {
+        /* strictly within box, not on boundary */
+        long candidate_row = 1 + random() % (LINES - 1);
+        long candidate_col = 1 + random() % (COLS - 1);
+        if (mvinch(candidate_row, candidate_col) == ' ') {
+            addch(apple_marker);
+            apples++;
+        }
     }
 }
 
-void convert_message_to_apples(int row, int col, const char *message, int message_length) {
-    for (int i=0; i<message_length; i++) {
-        if(message[i] !=' ') {
-            mvaddch(row, col+i, apple_marker);
+void convert_message_to_apples( int row, int col, const char *message, int message_length ) {
+    for (int i = 0; i < message_length; i++) {
+        if (message[i] != ' ') {
+            mvaddch(row, col + i, apple_marker);
             apples++;
         }
     }
