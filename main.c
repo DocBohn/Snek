@@ -9,6 +9,15 @@
 #define MESSAGE_DELAY 1500
 #define INITIAL_SNAKE_LENGTH 2
 
+#define HEAD_UP '^'
+#define HEAD_LEFT '<'
+#define HEAD_DOWN 'v'
+#define HEAD_RIGHT '>'
+#define TAIL_VERTICAL '|'
+#define TAIL_HORIZONTAL '-'
+#define TAIL_DIAGONAL_LEFT_UP '/'
+#define TAIL_DIAGONAL_RIGHT_UP '\\'
+
 typedef struct {
     int row;
     int col;
@@ -18,10 +27,7 @@ struct segment {
     ordered_pair position;
     chtype marker;
     struct segment *cranial;
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "OCUnusedGlobalDeclarationInspection"
     struct segment *caudad;
-#pragma clang diagnostic pop
 };
 
 void initialize();
@@ -33,7 +39,7 @@ void convert_message_to_apples( int row, int col, const char *message, int messa
 ordered_pair get_move( int input );
 bool check_for_collision( int row, int col );
 void eat_apple( int row, int col );
-struct segment *create_new_head( int row, int col, struct segment *old_head, chtype head_marker, chtype tail_marker );
+struct segment *create_new_head( int row, int col, struct segment *old_head );
 struct segment *destroy_old_tail( struct segment *old_tail, chtype replacement_marker );
 
 int original_cursor_state;
@@ -42,8 +48,9 @@ const size_t game_start_message_length = strlen(game_start_message);
 const char game_over_message[] = "Game Over!";
 const size_t game_over_message_length = strlen(game_over_message);
 
-chtype head_marker = '>';
-const chtype tail_marker = '*';
+enum {
+    UP, DOWN, LEFT, RIGHT
+} direction = RIGHT;
 int growth = INITIAL_SNAKE_LENGTH - 1;
 int pause = INITIAL_TIMEOUT;
 const chtype apple_marker = 'O';
@@ -112,7 +119,7 @@ void run() {
     napms(MESSAGE_DELAY);
 
     col -= 2;
-    struct segment *head = create_new_head(row, col++, NULL, head_marker, tail_marker);
+    struct segment *head = create_new_head(row, col++, NULL);
     struct segment *tail = head;
     ordered_pair delta = {.row = 0, .col = 1};  // initially move to the right
     convert_message_to_apples(row, col + 1, game_start_message, (int)game_start_message_length);
@@ -125,7 +132,7 @@ void run() {
     while (input != 'q') {
         bool collision = check_for_collision(row, col);
         eat_apple(row, col);
-        head = create_new_head(row, col, head, head_marker, tail_marker);
+        head = create_new_head(row, col, head);
         if (growth) {
             growth--;
         } else {
@@ -133,7 +140,7 @@ void run() {
             /* snek cannot bite the tip of a non-growing tail */
             if (collision && (row == tail->position.row) && (col == tail->position.col)) {
                 collision = FALSE;
-                replacement_marker = head_marker;
+                replacement_marker = head->marker;
             }
             tail = destroy_old_tail(tail, replacement_marker);
         }
@@ -156,17 +163,42 @@ void run() {
 }
 
 
-struct segment *create_new_head( int row, int col, struct segment *old_head, chtype head_marker, chtype tail_marker ) {
+struct segment *create_new_head( int row, int col, struct segment *old_head ) {
     struct segment *new_head = (struct segment *)malloc(sizeof(struct segment));
     new_head->position.row = row;
     new_head->position.col = col;
     new_head->caudad = old_head;
     new_head->cranial = NULL;
-    new_head->marker = head_marker;
+    if (old_head == NULL) {
+        new_head->marker = HEAD_RIGHT;
+    } else if (row - old_head->position.row < 0) {
+        new_head->marker = HEAD_UP;
+    } else if (row - old_head->position.row > 0) {
+        new_head->marker = HEAD_DOWN;
+    } else if (col - old_head->position.col < 0) {
+        new_head->marker = HEAD_LEFT;
+    } else if (col - old_head->position.col > 0) {
+        new_head->marker = HEAD_RIGHT;
+    } else {
+        new_head->marker = '?';
+    }
     mvaddch(new_head->position.row, new_head->position.col, new_head->marker);
     if (old_head != NULL) {
         old_head->cranial = new_head;
-        old_head->marker = tail_marker;
+        if (old_head->caudad == NULL) {
+            old_head->marker = TAIL_HORIZONTAL;
+        } else if (row - old_head->caudad->position.row == 0) {
+            old_head->marker = TAIL_HORIZONTAL;
+        } else if (col - old_head->caudad->position.col == 0) {
+            old_head->marker = TAIL_VERTICAL;
+        } else {
+            int orientation = (row - old_head->caudad->position.row) * (col - old_head->caudad->position.col);
+            if (orientation > 0) {
+                old_head->marker = TAIL_DIAGONAL_RIGHT_UP;
+            } else {
+                old_head->marker = TAIL_DIAGONAL_LEFT_UP;
+            }
+        }
         mvaddch(old_head->position.row, old_head->position.col, old_head->marker);
     }
     return new_head;
@@ -180,9 +212,12 @@ struct segment *destroy_old_tail( struct segment *old_tail, chtype replacement_m
 }
 
 bool check_for_collision( int row, int col ) {
-    if ((row == 0 || row == LINES - 1)              // collide with boundary
-        || (col == 0 || col == COLS - 1)            // collide with boundary
-        || (mvinch(row, col) == tail_marker)) {     // collide with tail
+    if ((row == 0 || row == LINES - 1)                          // collide with boundary
+        || (col == 0 || col == COLS - 1)                        // collide with boundary
+        || (mvinch(row, col) == TAIL_VERTICAL)                  // collide with tail
+        || (mvinch(row, col) == TAIL_HORIZONTAL)                // collide with tail
+        || (mvinch(row, col) == TAIL_DIAGONAL_LEFT_UP)          // collide with tail
+        || (mvinch(row, col) == TAIL_DIAGONAL_RIGHT_UP)) {      // collide with tail
         return TRUE;
     } else {
         return FALSE;
@@ -237,36 +272,36 @@ ordered_pair get_move( int input ) {
     ordered_pair result = {.row = 0, .col = 0};
     switch (input) {
         case 'w':
-            if (head_marker != 'v') {
+            if (direction != DOWN) {
                 result.row = -1;
-                head_marker = '^';
+                direction = UP;
             } else {
                 result.row = 1;
                 printf("\a");
             }
             break;
         case 'a':
-            if (head_marker != '>') {
+            if (direction != RIGHT) {
                 result.col = -1;
-                head_marker = '<';
+                direction = LEFT;
             } else {
                 result.col = 1;
                 printf("\a");
             }
             break;
         case 's':
-            if (head_marker != '^') {
+            if (direction != UP) {
                 result.row = 1;
-                head_marker = 'v';
+                direction = DOWN;
             } else {
                 result.row = -1;
                 printf("\a");
             }
             break;
         case 'd':
-            if (head_marker != '<') {
+            if (direction != LEFT) {
                 result.col = 1;
-                head_marker = '>';
+                direction = RIGHT;
             } else {
                 result.col = -1;
                 printf("\a");
@@ -275,17 +310,17 @@ ordered_pair get_move( int input ) {
         case 'q':
             break;
         default:
-            switch(head_marker) {
-                case '^':
+            switch (direction) {
+                case UP:
                     result.row = -1;
                     break;
-                case '<':
+                case LEFT:
                     result.col = -1;
                     break;
-                case 'v':
+                case DOWN:
                     result.row = 1;
                     break;
-                case '>':
+                case RIGHT:
                     result.col = 1;
                     break;
                 default:
