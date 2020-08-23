@@ -4,8 +4,9 @@
 #include <string.h>
 
 #define INITIAL_TIMEOUT 500
+#define TIMEOUT_DECREMENT 5
 #define MESSAGE_DELAY 1500
-#define INITIAL_SNAKE_LENGTH 6
+#define INITIAL_SNAKE_LENGTH 2
 
 typedef struct {
     int row;
@@ -16,18 +17,23 @@ struct segment {
     ordered_pair position;
     chtype marker;
     struct segment *cranial;
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "OCUnusedGlobalDeclarationInspection"
     struct segment *caudad;
+#pragma clang diagnostic pop
 };
 
 void initialize();
 void finalize();
+void finalize_on_error( int sig );
 void run();
-void report_memory_problem( int sig );
 
+void convert_message_to_apples(int row, int col, const char *message, int message_length);
 ordered_pair get_move( int input );
 bool check_for_collision( int row, int col );
+void eat_apple(int row, int col);
 struct segment *create_new_head( int row, int col, struct segment *old_head, chtype head_marker, chtype tail_marker );
-struct segment *destroy_old_tail( struct segment *old_tail );
+struct segment *destroy_old_tail( struct segment *old_tail, chtype replacement_marker );
 
 int original_cursor_state;
 const char game_start_message[] = "Ready Player One";
@@ -38,6 +44,9 @@ const size_t game_over_message_length = strlen(game_over_message);
 chtype head_marker = '>';
 const chtype tail_marker = '*';
 int growth = INITIAL_SNAKE_LENGTH - 1;
+int pause = INITIAL_TIMEOUT;
+const chtype apple_marker = 'O';
+int apples = 0;
 
 
 int main() {
@@ -53,7 +62,8 @@ void initialize() {
     crmode();
     noecho();
     signal(SIGINT, finalize);
-    signal(SIGSEGV, report_memory_problem);
+    signal(SIGABRT, finalize_on_error);
+    signal(SIGSEGV, finalize_on_error);
 }
 
 void finalize() {
@@ -65,11 +75,15 @@ void finalize() {
     exit(0);
 }
 
-void report_memory_problem( int sig ) {
+void finalize_on_error( int sig ) {
     signal(SIGINT, SIG_IGN);
+    signal(SIGABRT, SIG_IGN);
     signal(SIGSEGV, SIG_IGN);
     char *error_message;
     switch (sig) {
+        case SIGABRT:
+            error_message = "Game terminated due to abort signal.";
+            break;
         case SIGSEGV:
             error_message = "Game terminated due to segmentation fault.";
             break;
@@ -86,6 +100,7 @@ void report_memory_problem( int sig ) {
     exit(sig);
 }
 
+
 void run() {
     int col = COLS / 2 - (int)game_start_message_length / 2;
     int row = LINES / 2;
@@ -96,24 +111,28 @@ void run() {
     col -= 2;
     struct segment *head = create_new_head(row, col++, NULL, head_marker, tail_marker);
     struct segment *tail = head;
-
     ordered_pair delta = {.row = 0, .col = 1};  // initially move to the right
-    timeout(INITIAL_TIMEOUT);
+    convert_message_to_apples(row, col+1, game_start_message, (int)game_start_message_length);
     refresh();
+
+    timeout(pause);
     int input = 0;
-    napms(INITIAL_TIMEOUT);
+    napms(pause);
 
     while (input != 'q') {
         bool collision = check_for_collision(row, col);
+        eat_apple(row,col);
         head = create_new_head(row, col, head, head_marker, tail_marker);
         if (growth) {
             growth--;
         } else {
+            chtype replacement_marker = ' ';
             /* snek cannot bite the tip of a non-growing tail */
             if (collision && (row == tail->position.row) && (col == tail->position.col)) {
                 collision = FALSE;
+                replacement_marker = head_marker;
             }
-            tail = destroy_old_tail(tail);
+            tail = destroy_old_tail(tail, replacement_marker);
         }
         if (collision) {
             int message_row = row == LINES / 2 ? row + 2 : LINES / 2;
@@ -154,10 +173,10 @@ struct segment *create_new_head( int row, int col, struct segment *old_head, cht
     return new_head;
 }
 
-struct segment *destroy_old_tail( struct segment *old_tail ) {
+struct segment *destroy_old_tail( struct segment *old_tail, chtype replacement_marker ) {
 //    mvprintw(1 + tail_count++, 41, "%p", old_tail);
 //    refresh();
-    mvaddch(old_tail->position.row, old_tail->position.col, ' ');
+    mvaddch(old_tail->position.row, old_tail->position.col, replacement_marker);
     struct segment *new_tail = old_tail->cranial;
     free(old_tail);
     return new_tail;
@@ -171,6 +190,29 @@ bool check_for_collision( int row, int col ) {
         return FALSE;
     }
 }
+
+void eat_apple(int row, int col) {
+    chtype existing_char = mvinch(row, col);
+    if (existing_char == apple_marker) {
+        growth++;
+        apples--;
+        pause -= TIMEOUT_DECREMENT; // TODO - make this non-linear below some threshold, prevent a negative (blocking) pause
+        timeout(pause);
+    }
+    if (!apples) {
+        /* TODO - randomly place apple */
+    }
+}
+
+void convert_message_to_apples(int row, int col, const char *message, int message_length) {
+    for (int i=0; i<message_length; i++) {
+        if(message[i] !=' ') {
+            mvaddch(row, col+i, apple_marker);
+            apples++;
+        }
+    }
+}
+
 
 ordered_pair get_move( int input ) {
     ordered_pair result = {.row = 0, .col = 0};
