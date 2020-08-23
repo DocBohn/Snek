@@ -2,6 +2,7 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define INITIAL_TIMEOUT 500
 #define TIMEOUT_DECREMENT 5
@@ -47,6 +48,7 @@ int growth = INITIAL_SNAKE_LENGTH - 1;
 int pause = INITIAL_TIMEOUT;
 const chtype apple_marker = 'O';
 int apples = 0;
+int apples_eaten = 0;
 
 
 int main() {
@@ -56,6 +58,7 @@ int main() {
 }
 
 void initialize() {
+    srandom((unsigned int)time(0));
     initscr();
     original_cursor_state = curs_set(0);
     box(stdscr, '|', '-');
@@ -166,15 +169,10 @@ struct segment *create_new_head( int row, int col, struct segment *old_head, cht
         old_head->marker = tail_marker;
         mvaddch(old_head->position.row, old_head->position.col, old_head->marker);
     }
-//    mvprintw(1 + head_count, 1, "%p", old_head);
-//    mvprintw(1 + head_count++, 21, "%p", new_head);
-//    refresh();
     return new_head;
 }
 
 struct segment *destroy_old_tail( struct segment *old_tail, chtype replacement_marker ) {
-//    mvprintw(1 + tail_count++, 41, "%p", old_tail);
-//    refresh();
     mvaddch(old_tail->position.row, old_tail->position.col, replacement_marker);
     struct segment *new_tail = old_tail->cranial;
     free(old_tail);
@@ -182,8 +180,9 @@ struct segment *destroy_old_tail( struct segment *old_tail, chtype replacement_m
 }
 
 bool check_for_collision( int row, int col ) {
-    chtype existing_char = mvinch(row, col);
-    if ((existing_char == '|') || (existing_char == '-') || (existing_char == tail_marker)) {
+    if ((row == 0 || row == LINES - 1)              // collide with boundary
+        || (col == 0 || col == COLS - 1)            // collide with boundary
+        || (mvinch(row, col) == tail_marker)) {     // collide with tail
         return TRUE;
     } else {
         return FALSE;
@@ -193,6 +192,7 @@ bool check_for_collision( int row, int col ) {
 void eat_apple( int row, int col ) {
     chtype existing_char = mvinch(row, col);
     if (existing_char == apple_marker) {
+        mvprintw(0, 5, "Apples eaten: %d", ++apples_eaten);
         growth++;
         apples--;
         /* non-linear acceleration of player's reaction time */
@@ -217,6 +217,7 @@ void eat_apple( int row, int col ) {
         long candidate_col = 1 + random() % (COLS - 1);
         if (mvinch(candidate_row, candidate_col) == ' ') {
             addch(apple_marker);
+            mvprintw(0, COLS / 2, "Next apple: (%d,%d)--", candidate_row, candidate_col);
             apples++;
         }
     }
@@ -236,24 +237,60 @@ ordered_pair get_move( int input ) {
     ordered_pair result = {.row = 0, .col = 0};
     switch (input) {
         case 'w':
-            result.row = -1;
-            head_marker = '^';
+            if (head_marker != 'v') {
+                result.row = -1;
+                head_marker = '^';
+            } else {
+                result.row = 1;
+                printf("\a");
+            }
             break;
         case 'a':
-            result.col = -1;
-            head_marker = '<';
+            if (head_marker != '>') {
+                result.col = -1;
+                head_marker = '<';
+            } else {
+                result.col = 1;
+                printf("\a");
+            }
             break;
         case 's':
-            result.row = 1;
-            head_marker = 'v';
+            if (head_marker != '^') {
+                result.row = 1;
+                head_marker = 'v';
+            } else {
+                result.row = -1;
+                printf("\a");
+            }
             break;
         case 'd':
-            result.col = 1;
-            head_marker = '>';
+            if (head_marker != '<') {
+                result.col = 1;
+                head_marker = '>';
+            } else {
+                result.col = -1;
+                printf("\a");
+            }
             break;
         case 'q':
             break;
         default:
+            switch(head_marker) {
+                case '^':
+                    result.row = -1;
+                    break;
+                case '<':
+                    result.col = -1;
+                    break;
+                case 'v':
+                    result.row = 1;
+                    break;
+                case '>':
+                    result.col = 1;
+                    break;
+                default:
+                    printf("\a\a\a");
+            }
             printf("\a");
     }
     return result;
