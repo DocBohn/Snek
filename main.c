@@ -44,9 +44,9 @@ struct segment *destroy_old_tail(struct segment *old_tail, chtype replacement_ma
 
 int original_cursor_state;
 const char game_start_message[] = "Ready Player One";
-const size_t game_start_message_length = strlen(game_start_message);
+const size_t game_start_message_length = 16;    /* strlen(game_start_message) */    // clang15 doesn't pre-determine strlen(...) as a compile-time constant
 const char game_over_message[] = "Game Over!";
-const size_t game_over_message_length = strlen(game_over_message);
+const size_t game_over_message_length = 10;     /* strlen(game_over_message) */
 
 enum {
     UP, DOWN, LEFT, RIGHT
@@ -65,7 +65,7 @@ int main() {
 }
 
 void initialize() {
-    srandom((unsigned int) time(0));
+    srand((unsigned int) time(0));
     initscr();
     original_cursor_state = curs_set(0);
     box(stdscr, '|', '-');
@@ -248,8 +248,8 @@ void eat_apple(int row, int col) {
     /* if there are no apples on the screen, randomly place an apple */
     while (!apples) {
         /* strictly within box, not on boundary */
-        long candidate_row = 1 + random() % (LINES - 1);
-        long candidate_col = 1 + random() % (COLS - 1);
+        long candidate_row = 1 + rand() % (LINES - 1);
+        long candidate_col = 1 + rand() % (COLS - 1);
         if (mvinch(candidate_row, candidate_col) == ' ') {
             addch(apple_marker);
             mvprintw(0, COLS / 2, "Next apple: (%d,%d)--", candidate_row, candidate_col);
