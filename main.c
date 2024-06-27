@@ -32,15 +32,15 @@ struct segment {
 
 void initialize();
 void finalize();
-void finalize_on_error( int sig );
+void finalize_on_error(int sig);
 void run();
 
-void convert_message_to_apples( int row, int col, const char *message, int message_length );
-ordered_pair get_move( int input );
-bool check_for_collision( int row, int col );
-void eat_apple( int row, int col );
-struct segment *create_new_head( int row, int col, struct segment *old_head );
-struct segment *destroy_old_tail( struct segment *old_tail, chtype replacement_marker );
+void convert_message_to_apples(int row, int col, const char *message, int message_length);
+ordered_pair get_move(int input);
+bool check_for_collision(int row, int col);
+void eat_apple(int row, int col);
+struct segment *create_new_head(int row, int col, struct segment *old_head);
+struct segment *destroy_old_tail(struct segment *old_tail, chtype replacement_marker);
 
 int original_cursor_state;
 const char game_start_message[] = "Ready Player One";
@@ -65,7 +65,7 @@ int main() {
 }
 
 void initialize() {
-    srandom((unsigned int)time(0));
+    srandom((unsigned int) time(0));
     initscr();
     original_cursor_state = curs_set(0);
     box(stdscr, '|', '-');
@@ -85,7 +85,7 @@ void finalize() {
     exit(0);
 }
 
-void finalize_on_error( int sig ) {
+void finalize_on_error(int sig) {
     signal(SIGINT, SIG_IGN);
     signal(SIGABRT, SIG_IGN);
     signal(SIGSEGV, SIG_IGN);
@@ -100,7 +100,7 @@ void finalize_on_error( int sig ) {
         default:
             error_message = "Game terminated due to unknown memory error.";
     }
-    mvaddstr(LINES / 2 + 2, COLS / 2 - (int)strlen(error_message) / 2, error_message);
+    mvaddstr(LINES / 2 + 2, COLS / 2 - (int) strlen(error_message) / 2, error_message);
     refresh();
     napms(MESSAGE_DELAY);
     curs_set(original_cursor_state);
@@ -112,7 +112,7 @@ void finalize_on_error( int sig ) {
 
 
 void run() {
-    int col = COLS / 2 - (int)game_start_message_length / 2;
+    int col = COLS / 2 - (int) game_start_message_length / 2;
     int row = LINES / 2;
     mvaddstr(row, col, game_start_message);
     refresh();
@@ -122,7 +122,7 @@ void run() {
     struct segment *head = create_new_head(row, col++, NULL);
     struct segment *tail = head;
     ordered_pair delta = {.row = 0, .col = 1};  // initially move to the right
-    convert_message_to_apples(row, col + 1, game_start_message, (int)game_start_message_length);
+    convert_message_to_apples(row, col + 1, game_start_message, (int) game_start_message_length);
     refresh();
 
     timeout(pause);
@@ -146,7 +146,7 @@ void run() {
         }
         if (collision) {
             int message_row = row == LINES / 2 ? row + 2 : LINES / 2;
-            mvaddstr(message_row, COLS / 2 - (int)game_over_message_length / 2, game_over_message);
+            mvaddstr(message_row, COLS / 2 - (int) game_over_message_length / 2, game_over_message);
             refresh();
             napms(MESSAGE_DELAY);
             input = 'q';
@@ -163,8 +163,8 @@ void run() {
 }
 
 
-struct segment *create_new_head( int row, int col, struct segment *old_head ) {
-    struct segment *new_head = (struct segment *)malloc(sizeof(struct segment));
+struct segment *create_new_head(int row, int col, struct segment *old_head) {
+    struct segment *new_head = (struct segment *) malloc(sizeof(struct segment));
     new_head->position.row = row;
     new_head->position.col = col;
     new_head->caudad = old_head;
@@ -204,14 +204,14 @@ struct segment *create_new_head( int row, int col, struct segment *old_head ) {
     return new_head;
 }
 
-struct segment *destroy_old_tail( struct segment *old_tail, chtype replacement_marker ) {
+struct segment *destroy_old_tail(struct segment *old_tail, chtype replacement_marker) {
     mvaddch(old_tail->position.row, old_tail->position.col, replacement_marker);
     struct segment *new_tail = old_tail->cranial;
     free(old_tail);
     return new_tail;
 }
 
-bool check_for_collision( int row, int col ) {
+bool check_for_collision(int row, int col) {
     if ((row == 0 || row == LINES - 1)                          // collide with boundary
         || (col == 0 || col == COLS - 1)                        // collide with boundary
         || (mvinch(row, col) == TAIL_VERTICAL)                  // collide with tail
@@ -224,7 +224,7 @@ bool check_for_collision( int row, int col ) {
     }
 }
 
-void eat_apple( int row, int col ) {
+void eat_apple(int row, int col) {
     chtype existing_char = mvinch(row, col);
     if (existing_char == apple_marker) {
         mvprintw(0, 5, "Apples eaten: %d", ++apples_eaten);
@@ -258,7 +258,7 @@ void eat_apple( int row, int col ) {
     }
 }
 
-void convert_message_to_apples( int row, int col, const char *message, int message_length ) {
+void convert_message_to_apples(int row, int col, const char *message, int message_length) {
     for (int i = 0; i < message_length; i++) {
         if (message[i] != ' ') {
             mvaddch(row, col + i, apple_marker);
@@ -268,7 +268,7 @@ void convert_message_to_apples( int row, int col, const char *message, int messa
 }
 
 
-ordered_pair get_move( int input ) {
+ordered_pair get_move(int input) {
     ordered_pair result = {.row = 0, .col = 0};
     switch (input) {
         case 'w':
